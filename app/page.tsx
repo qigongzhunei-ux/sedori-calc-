@@ -1,4 +1,4 @@
-"use client";
+""use client";
 
 import { useState, type FormEvent, type ChangeEvent } from "react";
 import { calcSedoriProfit, type CalcResult } from "@/lib/calc";
@@ -29,15 +29,60 @@ type FieldConfig = {
   placeholder: string;
   step: string;
   max?: number;
+  description: string;
 };
 
 const fields: FieldConfig[] = [
-  { key: "buyPrice", label: "仕入れ価格", unit: "円", placeholder: "3000", step: "1" },
-  { key: "sellPrice", label: "販売価格", unit: "円", placeholder: "5000", step: "1" },
-  { key: "feeRate", label: "販売手数料率", unit: "%", placeholder: "10", step: "0.1", max: 100 },
-  { key: "shipping", label: "送料", unit: "円", placeholder: "500", step: "1" },
-  { key: "otherCost", label: "その他費用", unit: "円", placeholder: "0", step: "1" },
-  { key: "targetProfitRate", label: "目標利益率", unit: "%", placeholder: "20", step: "0.1", max: 100 },
+  {
+    key: "buyPrice",
+    label: "仕入れ価格",
+    unit: "円",
+    placeholder: "3000",
+    step: "1",
+    description: "自分が商品を仕入れる価格",
+  },
+  {
+    key: "sellPrice",
+    label: "販売価格",
+    unit: "円",
+    placeholder: "5000",
+    step: "1",
+    description: "実際に売る予定の価格",
+  },
+  {
+    key: "feeRate",
+    label: "販売手数料率",
+    unit: "%",
+    placeholder: "10",
+    step: "0.1",
+    max: 100,
+    description: "販売価格から引かれる手数料の割合",
+  },
+  {
+    key: "shipping",
+    label: "送料",
+    unit: "円",
+    placeholder: "500",
+    step: "1",
+    description: "購入者に発送するときの送料",
+  },
+  {
+    key: "otherCost",
+    label: "その他費用",
+    unit: "円",
+    placeholder: "0",
+    step: "1",
+    description: "梱包材などのその他の費用",
+  },
+  {
+    key: "targetProfitRate",
+    label: "目標利益率",
+    unit: "%",
+    placeholder: "20",
+    step: "0.1",
+    max: 100,
+    description: "最低限確保したい利益率",
+  },
 ];
 
 type MarketplaceKey = "mercari" | "yahoo" | "rakuma" | "manual";
@@ -251,10 +296,11 @@ export default function Home() {
 
                   <label
                     htmlFor={field.key}
-                    className="mb-1 block text-base font-medium text-slate-700"
+                    className="mb-0.5 block text-base font-medium text-slate-700"
                   >
                     {field.label}
                   </label>
+                  <p className="mb-1 text-xs text-slate-400">{field.description}</p>
                   <div className="relative">
                     <input
                       id={field.key}
@@ -309,35 +355,14 @@ export default function Home() {
 
         {result && judgment && tone && (
           <section className="mt-6 flex flex-col gap-4">
-            <div className={`rounded-2xl p-5 text-center shadow-sm ring-2 ${tone.bg} ${tone.ring}`}>
-              <p className={`text-xl font-bold ${tone.text}`}>{judgment.label}</p>
-
-              <p className={`mt-3 text-5xl font-bold ${tone.text}`}>
-                {result.profit >= 0 ? "+" : ""}
-                {formatYen(result.profit)}
-              </p>
-
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className={`rounded-xl ${tone.sub} py-3`}>
-                  <p className="text-xs text-slate-500">利益率</p>
-                  <p className={`text-2xl font-bold ${tone.text}`}>
-                    {formatPercent(result.profitRate)}
-                  </p>
-                </div>
-                <div className={`rounded-xl ${tone.sub} py-3`}>
-                  <p className="text-xs text-slate-500">ROI</p>
-                  <p className={`text-2xl font-bold ${tone.text}`}>
-                    {formatPercent(result.roi)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border-2 border-blue-600 bg-blue-50 p-5 text-center shadow-sm">
+            <div className="rounded-2xl border-2 border-blue-600 bg-blue-50 p-6 text-center shadow-sm">
               <p className="text-sm font-medium text-blue-700">
-                目標利益率を達成できる仕入れ上限価格
+                結局、いくらまでなら仕入れていい？
               </p>
-              <p className="mt-1 text-4xl font-bold text-blue-700">
+              <p className="mt-1 text-xs text-blue-500">
+                目標利益率{form.targetProfitRate}%を達成できる仕入れ上限価格
+              </p>
+              <p className="mt-2 text-5xl font-bold text-blue-700">
                 {result.maxBuyPrice >= 0 ? formatYen(result.maxBuyPrice) : "―"}
               </p>
               {result.maxBuyPrice < 0 && (
@@ -345,6 +370,32 @@ export default function Home() {
                   現在の条件では目標利益率を達成できません
                 </p>
               )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className={`rounded-2xl ${tone.bg} ring-1 ${tone.ring} p-4 text-center shadow-sm`}>
+                <p className="text-xs text-slate-500">利益額</p>
+                <p className={`mt-1 text-2xl font-bold ${tone.text}`}>
+                  {result.profit >= 0 ? "+" : ""}
+                  {formatYen(result.profit)}
+                </p>
+              </div>
+              <div className={`rounded-2xl ${tone.bg} ring-1 ${tone.ring} p-4 text-center shadow-sm`}>
+                <p className="text-xs text-slate-500">利益率</p>
+                <p className={`mt-1 text-2xl font-bold ${tone.text}`}>
+                  {formatPercent(result.profitRate)}
+                </p>
+              </div>
+              <div className={`rounded-2xl ${tone.bg} ring-1 ${tone.ring} p-4 text-center shadow-sm`}>
+                <p className="text-xs text-slate-500">ROI</p>
+                <p className={`mt-1 text-2xl font-bold ${tone.text}`}>
+                  {formatPercent(result.roi)}
+                </p>
+              </div>
+              <div className={`rounded-2xl ${tone.bg} ring-1 ${tone.ring} p-4 text-center shadow-sm`}>
+                <p className="text-xs text-slate-500">仕入れ判定</p>
+                <p className={`mt-1 text-xl font-bold ${tone.text}`}>{judgment.label}</p>
+              </div>
             </div>
 
             <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
