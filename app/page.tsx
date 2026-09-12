@@ -1,4 +1,4 @@
-"use client";
+""use client";
 
 import { useState, type FormEvent, type ChangeEvent } from "react";
 import { calcSedoriProfit, type CalcResult } from "@/lib/calc";
@@ -245,14 +245,36 @@ export default function Home() {
   return (
     <main className="min-h-screen w-full overflow-x-hidden px-4 py-6 sm:py-10">
       <div className="mx-auto w-full max-w-md">
-        <header className="mb-6 text-center">
+        <header className="mb-4 text-center">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            せどり利益計算
+            せどり利益計算ツール
           </h1>
           <p className="mt-1 text-sm text-slate-500">
             仕入れる前に、利益が出るか30秒でチェック
           </p>
+          <p className="mt-1 text-xs text-slate-400">
+            販売価格・仕入れ価格・送料・販売手数料を入力するだけ
+          </p>
         </header>
+
+        <div className="mb-4 rounded-2xl bg-blue-600 px-5 py-4 text-center shadow-sm">
+          <p className="text-base font-bold text-white">
+            結局、いくらまでなら仕入れていい?
+          </p>
+          <p className="mt-1 text-xs text-blue-100">
+            このツールなら「仕入れ上限価格」がすぐ分かります
+          </p>
+        </div>
+
+        <div className="mb-6 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+          <p className="mb-2 text-sm font-semibold text-slate-700">使い方</p>
+          <ol className="space-y-1 text-sm text-slate-600">
+            <li>1. 販売価格を入力</li>
+            <li>2. 仕入れ価格を入力</li>
+            <li>3. 送料・販売手数料を入力</li>
+            <li>4.「計算する」を押す</li>
+          </ol>
+        </div>
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-5">
@@ -357,7 +379,6 @@ export default function Home() {
               <h2 className="text-lg font-bold text-slate-900">計算結果</h2>
             </div>
 
-            {/* 仕入れ上限価格：塗りつぶし背景で最も目立たせる */}
             <div className="rounded-3xl bg-blue-600 p-7 text-center shadow-lg">
               <p className="text-sm font-medium text-blue-100">仕入れ上限価格</p>
               <p className="mt-1 text-6xl font-extrabold text-white">
@@ -373,7 +394,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* 利益額・利益率・ROI・仕入れ判定：4つのカードを2列で明確に区切る */}
             <div className="grid grid-cols-2 gap-3">
               <div className={`rounded-2xl bg-white p-4 text-center shadow-sm ${tone.border}`}>
                 <p className="text-xs font-medium text-slate-500">利益額</p>
