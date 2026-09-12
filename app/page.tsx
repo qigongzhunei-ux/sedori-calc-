@@ -40,6 +40,22 @@ const fields: FieldConfig[] = [
   { key: "targetProfitRate", label: "目標利益率", unit: "%", placeholder: "20", step: "0.1", max: 100 },
 ];
 
+type MarketplaceKey = "mercari" | "yahoo" | "rakuma" | "manual";
+
+type MarketplaceOption = {
+  key: MarketplaceKey;
+  label: string;
+  feeRate: number | null;
+  note?: string;
+};
+
+const marketplaceOptions: MarketplaceOption[] = [
+  { key: "mercari", label: "メルカリ", feeRate: 10 },
+  { key: "yahoo", label: "Yahoo!フリマ", feeRate: 5 },
+  { key: "rakuma", label: "楽天ラクマ", feeRate: 10, note: "販売実績で4.5%まで下がります" },
+  { key: "manual", label: "手動入力", feeRate: null },
+];
+
 function formatYen(n: number): string {
   const rounded = Math.round(n);
   const value = Object.is(rounded, -0) ? 0 : rounded;
@@ -92,13 +108,61 @@ function validate(form: FormState): Partial<Record<FieldKey, string>> {
   return errors;
 }
 
+type Judgment = {
+  label: string;
+  tone: "good" | "warn" | "bad";
+};
+
+function getJudgment(result: CalcResult, targetProfitRate: number): Judgment {
+  if (result.profit < 0) {
+    return { label: "× 仕入れNG", tone: "bad" };
+  }
+  if (result.profitRate >= targetProfitRate) {
+    return { label: "◎ 仕入れおすすめ", tone: "good" };
+  }
+  return { label: "△ 利益率が低め", tone: "warn" };
+}
+
+const toneStyles: Record<
+  Judgment["tone"],
+  { bg: string; ring: string; text: string; sub: string }
+> = {
+  good: {
+    bg: "bg-profit-light",
+    ring: "ring-profit/30",
+    text: "text-profit-dark",
+    sub: "bg-white/70",
+  },
+  warn: {
+    bg: "bg-amber-50",
+    ring: "ring-amber-300",
+    text: "text-amber-700",
+    sub: "bg-white/70",
+  },
+  bad: {
+    bg: "bg-loss-light",
+    ring: "ring-loss/30",
+    text: "text-loss-dark",
+    sub: "bg-white/70",
+  },
+};
+
 export default function Home() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [result, setResult] = useState<CalcResult | null>(null);
+  const [marketplace, setMarketplace] = useState<MarketplaceKey>("manual");
 
   const handleChange = (key: FieldKey) => (e: ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
+  };
+
+  const handleSelectMarketplace = (option: MarketplaceOption) => {
+    setMarketplace(option.key);
+    if (option.feeRate !== null) {
+      setForm((prev) => ({ ...prev, feeRate: String(option.feeRate) }));
+      setErrors((prev) => ({ ...prev, feeRate: undefined }));
+    }
   };
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -128,9 +192,13 @@ export default function Home() {
     setForm(initialForm);
     setErrors({});
     setResult(null);
+    setMarketplace("manual");
   };
 
-  const isProfit = result !== null && result.profit >= 0;
+  const judgment = result
+    ? getJudgment(result, Number(form.targetProfitRate) || 0)
+    : null;
+  const tone = judgment ? toneStyles[judgment.tone] : null;
 
   return (
     <main className="min-h-screen w-full overflow-x-hidden px-4 py-6 sm:py-10">
@@ -146,12 +214,44 @@ export default function Home() {
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-5">
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-5">
               {fields.map((field) => (
                 <div key={field.key}>
+                  {field.key === "feeRate" && (
+                    <div className="mb-3">
+                      <label className="mb-2 block text-base font-medium text-slate-700">
+                        販売先
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {marketplaceOptions.map((option) => (
+                          <button
+                            key={option.key}
+                            type="button"
+                            onClick={() => handleSelectMarketplace(option)}
+                            className={`rounded-xl py-3 text-sm font-medium transition ${
+                              marketplace === option.key
+                                ? "bg-blue-600 text-white"
+                                : "bg-slate-100 text-slate-600 active:bg-slate-200"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                      {marketplace !== "manual" && (
+                        <p className="mt-2 text-xs text-slate-500">
+                          {marketplaceOptions.find((o) => o.key === marketplace)?.label}
+                          の標準手数料率を自動設定しました。
+                          {marketplaceOptions.find((o) => o.key === marketplace)?.note}
+                          変更する場合は「手動入力」を選んでください。
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   <label
                     htmlFor={field.key}
-                    className="mb-1 block text-sm font-medium text-slate-700"
+                    className="mb-1 block text-base font-medium text-slate-700"
                   >
                     {field.label}
                   </label>
@@ -167,13 +267,18 @@ export default function Home() {
                       placeholder={field.placeholder}
                       value={form[field.key]}
                       onChange={handleChange(field.key)}
-                      className={`w-full min-w-0 rounded-xl border bg-slate-50 px-3 py-3 pr-10 text-base text-slate-900 outline-none transition focus:bg-white focus:ring-2 ${
+                      disabled={field.key === "feeRate" && marketplace !== "manual"}
+                      className={`w-full min-w-0 rounded-xl border px-4 py-4 pr-12 text-lg text-slate-900 outline-none transition focus:bg-white focus:ring-2 ${
+                        field.key === "feeRate" && marketplace !== "manual"
+                          ? "border-slate-200 bg-slate-100 text-slate-500"
+                          : "bg-slate-50"
+                      } ${
                         errors[field.key]
                           ? "border-loss focus:ring-loss/40"
                           : "border-slate-200 focus:ring-blue-400"
                       }`}
                     />
-                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
+                    <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-base text-slate-400">
                       {field.unit}
                     </span>
                   </div>
@@ -188,74 +293,51 @@ export default function Home() {
           <div className="mt-4 flex flex-col gap-2">
             <button
               type="submit"
-              className="w-full rounded-xl bg-blue-600 py-3.5 text-base font-semibold text-white shadow-sm transition active:scale-[0.99] active:bg-blue-700"
+              className="w-full rounded-xl bg-blue-600 py-4 text-lg font-semibold text-white shadow-sm transition active:scale-[0.99] active:bg-blue-700"
             >
               計算する
             </button>
             <button
               type="button"
               onClick={handleReset}
-              className="w-full rounded-xl bg-slate-200 py-3 text-sm font-medium text-slate-600 transition active:scale-[0.99] active:bg-slate-300"
+              className="w-full rounded-xl bg-slate-200 py-3.5 text-sm font-medium text-slate-600 transition active:scale-[0.99] active:bg-slate-300"
             >
               入力をリセット
             </button>
           </div>
         </form>
 
-        {result && (
+        {result && judgment && tone && (
           <section className="mt-6 flex flex-col gap-4">
-            <div
-              className={`rounded-2xl p-5 text-center shadow-sm ring-1 ${
-                isProfit
-                  ? "bg-profit-light ring-profit/30"
-                  : "bg-loss-light ring-loss/30"
-              }`}
-            >
-              <p
-                className={`text-sm font-medium ${
-                  isProfit ? "text-profit-dark" : "text-loss-dark"
-                }`}
-              >
-                {isProfit ? "✅ 利益が出ます" : "⚠️ このままでは赤字です"}
-              </p>
-              <p
-                className={`mt-1 text-4xl font-bold ${
-                  isProfit ? "text-profit-dark" : "text-loss-dark"
-                }`}
-              >
-                {isProfit ? "+" : ""}
+            <div className={`rounded-2xl p-5 text-center shadow-sm ring-2 ${tone.bg} ${tone.ring}`}>
+              <p className={`text-xl font-bold ${tone.text}`}>{judgment.label}</p>
+
+              <p className={`mt-3 text-5xl font-bold ${tone.text}`}>
+                {result.profit >= 0 ? "+" : ""}
                 {formatYen(result.profit)}
               </p>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-white/70 py-3">
+                <div className={`rounded-xl ${tone.sub} py-3`}>
                   <p className="text-xs text-slate-500">利益率</p>
-                  <p
-                    className={`text-xl font-bold ${
-                      isProfit ? "text-profit-dark" : "text-loss-dark"
-                    }`}
-                  >
+                  <p className={`text-2xl font-bold ${tone.text}`}>
                     {formatPercent(result.profitRate)}
                   </p>
                 </div>
-                <div className="rounded-xl bg-white/70 py-3">
+                <div className={`rounded-xl ${tone.sub} py-3`}>
                   <p className="text-xs text-slate-500">ROI</p>
-                  <p
-                    className={`text-xl font-bold ${
-                      isProfit ? "text-profit-dark" : "text-loss-dark"
-                    }`}
-                  >
+                  <p className={`text-2xl font-bold ${tone.text}`}>
                     {formatPercent(result.roi)}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-2xl bg-blue-50 p-5 text-center shadow-sm ring-1 ring-blue-200">
+            <div className="rounded-2xl border-2 border-blue-600 bg-blue-50 p-5 text-center shadow-sm">
               <p className="text-sm font-medium text-blue-700">
                 目標利益率を達成できる仕入れ上限価格
               </p>
-              <p className="mt-1 text-3xl font-bold text-blue-700">
+              <p className="mt-1 text-4xl font-bold text-blue-700">
                 {result.maxBuyPrice >= 0 ? formatYen(result.maxBuyPrice) : "―"}
               </p>
               {result.maxBuyPrice < 0 && (
