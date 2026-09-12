@@ -1,4 +1,4 @@
-""use client";
+"use client";
 
 import { useState, type FormEvent, type ChangeEvent } from "react";
 import { calcSedoriProfit, type CalcResult } from "@/lib/calc";
@@ -170,25 +170,22 @@ function getJudgment(result: CalcResult, targetProfitRate: number): Judgment {
 
 const toneStyles: Record<
   Judgment["tone"],
-  { bg: string; ring: string; text: string; sub: string }
+  { border: string; text: string; solidBg: string }
 > = {
   good: {
-    bg: "bg-profit-light",
-    ring: "ring-profit/30",
+    border: "border-t-4 border-profit",
     text: "text-profit-dark",
-    sub: "bg-white/70",
+    solidBg: "bg-profit",
   },
   warn: {
-    bg: "bg-amber-50",
-    ring: "ring-amber-300",
+    border: "border-t-4 border-amber-400",
     text: "text-amber-700",
-    sub: "bg-white/70",
+    solidBg: "bg-amber-400",
   },
   bad: {
-    bg: "bg-loss-light",
-    ring: "ring-loss/30",
+    border: "border-t-4 border-loss",
     text: "text-loss-dark",
-    sub: "bg-white/70",
+    solidBg: "bg-loss",
   },
 };
 
@@ -354,47 +351,52 @@ export default function Home() {
         </form>
 
         {result && judgment && tone && (
-          <section className="mt-6 flex flex-col gap-4">
-            <div className="rounded-2xl border-2 border-blue-600 bg-blue-50 p-6 text-center shadow-sm">
-              <p className="text-sm font-medium text-blue-700">
-                結局、いくらまでなら仕入れていい？
+          <section className="mt-8 flex flex-col gap-4">
+            <div className="flex items-center gap-2 border-t border-slate-200 pt-6">
+              <span className="h-2 w-2 rounded-full bg-blue-600" />
+              <h2 className="text-lg font-bold text-slate-900">計算結果</h2>
+            </div>
+
+            {/* 仕入れ上限価格：塗りつぶし背景で最も目立たせる */}
+            <div className="rounded-3xl bg-blue-600 p-7 text-center shadow-lg">
+              <p className="text-sm font-medium text-blue-100">仕入れ上限価格</p>
+              <p className="mt-1 text-6xl font-extrabold text-white">
+                {result.maxBuyPrice >= 0 ? `¥${Math.round(result.maxBuyPrice).toLocaleString("ja-JP")}` : "―"}
               </p>
-              <p className="mt-1 text-xs text-blue-500">
-                目標利益率{form.targetProfitRate}%を達成できる仕入れ上限価格
-              </p>
-              <p className="mt-2 text-5xl font-bold text-blue-700">
-                {result.maxBuyPrice >= 0 ? formatYen(result.maxBuyPrice) : "―"}
+              <p className="mt-2 text-sm font-medium text-blue-100">
+                目標利益率{form.targetProfitRate}%を達成できる上限
               </p>
               {result.maxBuyPrice < 0 && (
-                <p className="mt-1 text-xs text-blue-700">
+                <p className="mt-1 text-xs text-blue-100">
                   現在の条件では目標利益率を達成できません
                 </p>
               )}
             </div>
 
+            {/* 利益額・利益率・ROI・仕入れ判定：4つのカードを2列で明確に区切る */}
             <div className="grid grid-cols-2 gap-3">
-              <div className={`rounded-2xl ${tone.bg} ring-1 ${tone.ring} p-4 text-center shadow-sm`}>
-                <p className="text-xs text-slate-500">利益額</p>
-                <p className={`mt-1 text-2xl font-bold ${tone.text}`}>
+              <div className={`rounded-2xl bg-white p-4 text-center shadow-sm ${tone.border}`}>
+                <p className="text-xs font-medium text-slate-500">利益額</p>
+                <p className={`mt-1 text-3xl font-bold ${tone.text}`}>
                   {result.profit >= 0 ? "+" : ""}
                   {formatYen(result.profit)}
                 </p>
               </div>
-              <div className={`rounded-2xl ${tone.bg} ring-1 ${tone.ring} p-4 text-center shadow-sm`}>
-                <p className="text-xs text-slate-500">利益率</p>
-                <p className={`mt-1 text-2xl font-bold ${tone.text}`}>
+              <div className="rounded-2xl border-t-4 border-slate-300 bg-white p-4 text-center shadow-sm">
+                <p className="text-xs font-medium text-slate-500">利益率</p>
+                <p className="mt-1 text-3xl font-bold text-slate-800">
                   {formatPercent(result.profitRate)}
                 </p>
               </div>
-              <div className={`rounded-2xl ${tone.bg} ring-1 ${tone.ring} p-4 text-center shadow-sm`}>
-                <p className="text-xs text-slate-500">ROI</p>
-                <p className={`mt-1 text-2xl font-bold ${tone.text}`}>
+              <div className="rounded-2xl border-t-4 border-slate-300 bg-white p-4 text-center shadow-sm">
+                <p className="text-xs font-medium text-slate-500">ROI</p>
+                <p className="mt-1 text-3xl font-bold text-slate-800">
                   {formatPercent(result.roi)}
                 </p>
               </div>
-              <div className={`rounded-2xl ${tone.bg} ring-1 ${tone.ring} p-4 text-center shadow-sm`}>
-                <p className="text-xs text-slate-500">仕入れ判定</p>
-                <p className={`mt-1 text-xl font-bold ${tone.text}`}>{judgment.label}</p>
+              <div className={`rounded-2xl ${tone.solidBg} p-4 text-center shadow-sm`}>
+                <p className="text-xs font-medium text-white/80">仕入れ判定</p>
+                <p className="mt-1 text-xl font-extrabold text-white">{judgment.label}</p>
               </div>
             </div>
 
