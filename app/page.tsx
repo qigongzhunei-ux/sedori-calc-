@@ -248,19 +248,66 @@ const compareSortOptions: { key: CompareSortKey; label: string }[] = [
   { key: "maxBuyPrice", label: "上限価格順" },
 ];
 
+type SimulateForm = {
+  perItemProfit: string;
+  monthlyQty: string;
+};
+
+type SimulateErrors = Partial<Record<keyof SimulateForm, string>>;
+
+const referenceQuantities = [10, 30, 50, 100];
+
+function validateSimulate(form: SimulateForm): SimulateErrors {
+  const errors: SimulateErrors = {};
+
+  const profitRaw = form.perItemProfit.trim();
+  if (profitRaw === "") {
+    errors.perItemProfit = "入力してください";
+  } else if (Number.isNaN(Number(profitRaw))) {
+    errors.perItemProfit = "数値を入力してください";
+  }
+
+  const qtyRaw = form.monthlyQty.trim();
+  if (qtyRaw === "") {
+    errors.monthlyQty = "入力してください";
+  } else {
+    const qtyValue = Number(qtyRaw);
+    if (Number.isNaN(qtyValue)) {
+      errors.monthlyQty = "数値を入力してください";
+    } else if (qtyValue < 0) {
+      errors.monthlyQty = "0以上の値を入力してください";
+    }
+  }
+
+  return errors;
+}
+
 export default function Home() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [result, setResult] = useState<CalcResult | null>(null);
   const [marketplace, setMarketplace] = useState<MarketplaceKey>("manual");
 
-  const [view, setView] = useState<"calculator" | "list" | "compare">("calculator");
+  const [view, setView] = useState<"calculator" | "list" | "compare" | "simulate">(
+    "calculator"
+  );
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
   const [productName, setProductName] = useState("");
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const [compareSelectedIds, setCompareSelectedIds] = useState<Set<string>>(new Set());
   const [compareSortKey, setCompareSortKey] = useState<CompareSortKey>("profit");
+
+  const [simulateForm, setSimulateForm] = useState<SimulateForm>({
+    perItemProfit: "",
+    monthlyQty: "",
+  });
+  const [simulateErrors, setSimulateErrors] = useState<SimulateErrors>({});
+  const [simulateResult, setSimulateResult] = useState<{
+    perItemProfit: number;
+    monthlyQty: number;
+    monthlyProfit: number;
+  } | null>(null);
 
   useEffect(() => {
     setSavedItems(loadSavedItems());
@@ -412,6 +459,43 @@ export default function Home() {
     ? Math.max(...compareItems.map((i) => i.maxBuyPrice))
     : null;
 
+  const handleSimulateChange =
+    (key: keyof SimulateForm) => (e: ChangeEvent<HTMLInputElement>) => {
+      setSimulateForm((prev) => ({ ...prev, [key]: e.target.value }));
+    };
+
+  const handleSimulateSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const validationErrors = validateSimulate(simulateForm);
+    setSimulateErrors(validationErrors);
+
+    if (Object.keys(validationErrors).length > 0) {
+      setSimulateResult(null);
+      return;
+    }
+
+    const perItemProfit = Number(simulateForm.perItemProfit);
+    const monthlyQty = Number(simulateForm.monthlyQty);
+
+    setSimulateResult({
+      perItemProfit,
+      monthlyQty,
+      monthlyProfit: perItemProfit * monthlyQty,
+    });
+  };
+
+  const handleSimulateReset = () => {
+    setSimulateForm({ perItemProfit: "", monthlyQty: "" });
+    setSimulateErrors({});
+    setSimulateResult(null);
+  };
+
+  const handleUseSavedItemForSimulation = (item: SavedItem) => {
+    setSimulateForm((prev) => ({ ...prev, perItemProfit: String(item.profit) }));
+    setSimulateErrors((prev) => ({ ...prev, perItemProfit: undefined }));
+  };
+
   return (
     <main className="min-h-screen w-full overflow-x-hidden px-4 py-6 sm:py-10">
       <div className="mx-auto w-full max-w-md">
@@ -428,20 +512,29 @@ export default function Home() {
         </header>
 
         {view === "calculator" ? (
-          <div className="mb-4 grid grid-cols-2 gap-2">
+          <div className="mb-4 flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setView("list")}
+                className="w-full rounded-xl bg-white py-3 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200 transition active:bg-slate-100"
+              >
+                📋 保存した商品（{savedItems.length}件）
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("compare")}
+                className="w-full rounded-xl bg-white py-3 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200 transition active:bg-slate-100"
+              >
+                📊 商品を比較する
+              </button>
+            </div>
             <button
               type="button"
-              onClick={() => setView("list")}
-              className="w-full rounded-xl bg-white py-3 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200 transition active:bg-slate-100"
+              onClick={() => setView("simulate")}
+              className="w-full rounded-xl bg-white py-3 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200 transition active:bg-slate-100"
             >
-              📋 保存した商品（{savedItems.length}件）
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("compare")}
-              className="w-full rounded-xl bg-white py-3 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200 transition active:bg-slate-100"
-            >
-              📊 商品を比較する
+              📅 月間利益シミュレーション
             </button>
           </div>
         ) : (
@@ -710,6 +803,171 @@ export default function Home() {
                   </div>
                 )}
               </>
+            )}
+          </section>
+        )}
+
+        {view === "simulate" && (
+          <section className="flex flex-col gap-4">
+            <h2 className="text-lg font-bold text-slate-900">月間利益シミュレーション</h2>
+
+            {savedItems.length > 0 && (
+              <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                <p className="mb-2 text-sm font-semibold text-slate-700">
+                  保存した商品から選ぶ
+                </p>
+                <div className="flex flex-col gap-2">
+                  {savedItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2.5"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-700">
+                          {item.productName}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          利益額 {item.profit >= 0 ? "+" : ""}
+                          {formatYen(item.profit)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleUseSavedItemForSimulation(item)}
+                        className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition active:bg-blue-700"
+                      >
+                        この商品を使う
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleSimulateSubmit} noValidate>
+              <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-5">
+                <div className="grid grid-cols-1 gap-5">
+                  <div>
+                    <label
+                      htmlFor="perItemProfit"
+                      className="mb-0.5 block text-base font-medium text-slate-700"
+                    >
+                      1商品あたりの利益額
+                    </label>
+                    <p className="mb-1 text-xs text-slate-400">
+                      1個売ったときに残る利益額
+                    </p>
+                    <div className="relative">
+                      <input
+                        id="perItemProfit"
+                        type="number"
+                        inputMode="decimal"
+                        step="1"
+                        placeholder="1000"
+                        value={simulateForm.perItemProfit}
+                        onChange={handleSimulateChange("perItemProfit")}
+                        className={`w-full min-w-0 rounded-xl border bg-slate-50 px-4 py-4 pr-12 text-lg text-slate-900 outline-none transition focus:bg-white focus:ring-2 ${
+                          simulateErrors.perItemProfit
+                            ? "border-loss focus:ring-loss/40"
+                            : "border-slate-200 focus:ring-blue-400"
+                        }`}
+                      />
+                      <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-base text-slate-400">
+                        円
+                      </span>
+                    </div>
+                    {simulateErrors.perItemProfit && (
+                      <p className="mt-1 text-xs text-loss">
+                        {simulateErrors.perItemProfit}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="monthlyQty"
+                      className="mb-0.5 block text-base font-medium text-slate-700"
+                    >
+                      月間販売個数
+                    </label>
+                    <p className="mb-1 text-xs text-slate-400">
+                      1ヶ月に売る予定の個数
+                    </p>
+                    <div className="relative">
+                      <input
+                        id="monthlyQty"
+                        type="number"
+                        inputMode="numeric"
+                        step="1"
+                        min={0}
+                        placeholder="50"
+                        value={simulateForm.monthlyQty}
+                        onChange={handleSimulateChange("monthlyQty")}
+                        className={`w-full min-w-0 rounded-xl border bg-slate-50 px-4 py-4 pr-12 text-lg text-slate-900 outline-none transition focus:bg-white focus:ring-2 ${
+                          simulateErrors.monthlyQty
+                            ? "border-loss focus:ring-loss/40"
+                            : "border-slate-200 focus:ring-blue-400"
+                        }`}
+                      />
+                      <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-base text-slate-400">
+                        個
+                      </span>
+                    </div>
+                    {simulateErrors.monthlyQty && (
+                      <p className="mt-1 text-xs text-loss">{simulateErrors.monthlyQty}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-col gap-2">
+                <button
+                  type="submit"
+                  className="w-full rounded-xl bg-blue-600 py-4 text-lg font-semibold text-white shadow-sm transition active:scale-[0.99] active:bg-blue-700"
+                >
+                  計算する
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSimulateReset}
+                  className="w-full rounded-xl bg-slate-200 py-3.5 text-sm font-medium text-slate-600 transition active:scale-[0.99] active:bg-slate-300"
+                >
+                  入力をリセット
+                </button>
+              </div>
+            </form>
+
+            {simulateResult && (
+              <div className="flex flex-col gap-4">
+                <div className="rounded-3xl bg-blue-600 p-7 text-center shadow-lg">
+                  <p className="text-sm font-medium text-blue-100">
+                    月間販売数：{simulateResult.monthlyQty.toLocaleString("ja-JP")}個 ／ 1個あたり利益：
+                    {formatYen(simulateResult.perItemProfit)}
+                  </p>
+                  <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-blue-200">
+                    月間利益
+                  </p>
+                  <p className="mt-1 text-6xl font-extrabold text-white">
+                    ¥{Math.round(simulateResult.monthlyProfit).toLocaleString("ja-JP")}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                  <p className="mb-2 text-sm font-semibold text-slate-700">
+                    販売個数ごとの月間利益(参考)
+                  </p>
+                  <dl className="divide-y divide-slate-100 text-sm">
+                    {referenceQuantities.map((qty) => (
+                      <div key={qty} className="flex items-center justify-between py-2">
+                        <dt className="text-slate-500">{qty}個</dt>
+                        <dd className="font-medium text-slate-800">
+                          {formatYen(simulateResult.perItemProfit * qty)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              </div>
             )}
           </section>
         )}
