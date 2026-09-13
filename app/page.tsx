@@ -239,20 +239,39 @@ function formatDateTime(iso: string): string {
   });
 }
 
+type CompareSortKey = "profit" | "profitRate" | "roi" | "maxBuyPrice";
+
+const compareSortOptions: { key: CompareSortKey; label: string }[] = [
+  { key: "profit", label: "利益額順" },
+  { key: "profitRate", label: "利益率順" },
+  { key: "roi", label: "ROI順" },
+  { key: "maxBuyPrice", label: "上限価格順" },
+];
+
 export default function Home() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [result, setResult] = useState<CalcResult | null>(null);
   const [marketplace, setMarketplace] = useState<MarketplaceKey>("manual");
 
-  const [view, setView] = useState<"calculator" | "list">("calculator");
+  const [view, setView] = useState<"calculator" | "list" | "compare">("calculator");
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
   const [productName, setProductName] = useState("");
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
+  const [compareSelectedIds, setCompareSelectedIds] = useState<Set<string>>(new Set());
+  const [compareSortKey, setCompareSortKey] = useState<CompareSortKey>("profit");
+
   useEffect(() => {
     setSavedItems(loadSavedItems());
   }, []);
+
+  useEffect(() => {
+    if (view === "compare") {
+      setCompareSelectedIds(new Set(savedItems.map((item) => item.id)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   const handleChange = (key: FieldKey) => (e: ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
@@ -309,380 +328,3 @@ export default function Home() {
 
     const newItem: SavedItem = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      productName: productName.trim() || "名称未設定の商品",
-      sellPrice: Number(form.sellPrice),
-      buyPrice: Number(form.buyPrice),
-      feeRate: Number(form.feeRate),
-      shipping: Number(form.shipping),
-      otherCost: Number(form.otherCost),
-      targetProfitRate: Number(form.targetProfitRate),
-      profit: result.profit,
-      profitRate: result.profitRate,
-      roi: result.roi,
-      maxBuyPrice: result.maxBuyPrice,
-      judgmentLabel: judgment.label,
-      savedAt: new Date().toISOString(),
-    };
-
-    const updated = [newItem, ...savedItems];
-    setSavedItems(updated);
-    persistSavedItems(updated);
-    setProductName("");
-    setSaveMessage("保存しました");
-  };
-
-  const handleDeleteItem = (id: string) => {
-    const updated = savedItems.filter((item) => item.id !== id);
-    setSavedItems(updated);
-    persistSavedItems(updated);
-  };
-
-  const handleLoadItem = (item: SavedItem) => {
-    setForm({
-      buyPrice: String(item.buyPrice),
-      sellPrice: String(item.sellPrice),
-      feeRate: String(item.feeRate),
-      shipping: String(item.shipping),
-      otherCost: String(item.otherCost),
-      targetProfitRate: String(item.targetProfitRate),
-    });
-    setErrors({});
-    setMarketplace("manual");
-
-    const calcResult = calcSedoriProfit({
-      buyPrice: item.buyPrice,
-      sellPrice: item.sellPrice,
-      feeRate: item.feeRate,
-      shipping: item.shipping,
-      otherCost: item.otherCost,
-      targetProfitRate: item.targetProfitRate,
-    });
-    setResult(calcResult);
-    setProductName("");
-    setSaveMessage(null);
-    setView("calculator");
-  };
-
-  return (
-    <main className="min-h-screen w-full overflow-x-hidden px-4 py-6 sm:py-10">
-      <div className="mx-auto w-full max-w-md">
-        <header className="mb-4 text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            せどり利益計算ツール
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            仕入れる前に、利益が出るか30秒でチェック
-          </p>
-          <p className="mt-1 text-xs text-slate-400">
-            販売価格・仕入れ価格・送料・販売手数料を入力するだけ
-          </p>
-        </header>
-
-        <button
-          type="button"
-          onClick={() => setView(view === "list" ? "calculator" : "list")}
-          className="mb-4 w-full rounded-xl bg-white py-3 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200 transition active:bg-slate-100"
-        >
-          {view === "list"
-            ? "← 計算画面に戻る"
-            : `📋 保存した商品を見る（${savedItems.length}件）`}
-        </button>
-
-        {view === "list" ? (
-          <section className="flex flex-col gap-3">
-            <h2 className="text-lg font-bold text-slate-900">保存した商品</h2>
-
-            {savedItems.length === 0 && (
-              <div className="rounded-2xl bg-white p-6 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
-                まだ保存された商品はありません
-              </div>
-            )}
-
-            {savedItems.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-base font-bold text-slate-900">
-                    {item.productName}
-                  </p>
-                  <p className="shrink-0 text-xs text-slate-400">
-                    {formatDateTime(item.savedAt)}
-                  </p>
-                </div>
-
-                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded-xl bg-blue-50 p-3 text-center">
-                    <p className="text-xs text-blue-600">仕入れ上限価格</p>
-                    <p className="mt-0.5 text-lg font-bold text-blue-700">
-                      {item.maxBuyPrice >= 0 ? formatYen(item.maxBuyPrice) : "―"}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-slate-50 p-3 text-center">
-                    <p className="text-xs text-slate-500">仕入れ判定</p>
-                    <p className="mt-0.5 text-lg font-bold text-slate-800">
-                      {item.judgmentLabel}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-slate-50 p-3 text-center">
-                    <p className="text-xs text-slate-500">利益額</p>
-                    <p className="mt-0.5 font-bold text-slate-800">
-                      {item.profit >= 0 ? "+" : ""}
-                      {formatYen(item.profit)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-slate-50 p-3 text-center">
-                    <p className="text-xs text-slate-500">利益率 / ROI</p>
-                    <p className="mt-0.5 font-bold text-slate-800">
-                      {formatPercent(item.profitRate)} / {formatPercent(item.roi)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-3 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleLoadItem(item)}
-                    className="flex-1 rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white transition active:bg-blue-700"
-                  >
-                    計算画面に戻す
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteItem(item.id)}
-                    className="flex-1 rounded-xl bg-slate-100 py-2.5 text-sm font-semibold text-loss-dark transition active:bg-slate-200"
-                  >
-                    削除
-                  </button>
-                </div>
-              </div>
-            ))}
-          </section>
-        ) : (
-          <>
-            <div className="mb-4 rounded-2xl bg-blue-600 px-5 py-4 text-center shadow-sm">
-              <p className="text-base font-bold text-white">
-                結局、いくらまでなら仕入れていい?
-              </p>
-              <p className="mt-1 text-xs text-blue-100">
-                このツールなら「仕入れ上限価格」がすぐ分かります
-              </p>
-            </div>
-
-            <div className="mb-6 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-              <p className="mb-2 text-sm font-semibold text-slate-700">使い方</p>
-              <ol className="space-y-1 text-sm text-slate-600">
-                <li>1. 販売価格を入力</li>
-                <li>2. 仕入れ価格を入力</li>
-                <li>3. 送料・販売手数料を入力</li>
-                <li>4.「計算する」を押す</li>
-              </ol>
-            </div>
-
-            <form onSubmit={handleSubmit} noValidate>
-              <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-5">
-                <div className="grid grid-cols-1 gap-5">
-                  {fields.map((field) => (
-                    <div key={field.key}>
-                      {field.key === "feeRate" && (
-                        <div className="mb-3">
-                          <label className="mb-2 block text-base font-medium text-slate-700">
-                            販売先
-                          </label>
-                          <div className="grid grid-cols-2 gap-2">
-                            {marketplaceOptions.map((option) => (
-                              <button
-                                key={option.key}
-                                type="button"
-                                onClick={() => handleSelectMarketplace(option)}
-                                className={`rounded-xl py-3 text-sm font-medium transition ${
-                                  marketplace === option.key
-                                    ? "bg-blue-600 text-white"
-                                    : "bg-slate-100 text-slate-600 active:bg-slate-200"
-                                }`}
-                              >
-                                {option.label}
-                              </button>
-                            ))}
-                          </div>
-                          {marketplace !== "manual" && (
-                            <p className="mt-2 text-xs text-slate-500">
-                              {marketplaceOptions.find((o) => o.key === marketplace)?.label}
-                              の標準手数料率を自動設定しました。
-                              {marketplaceOptions.find((o) => o.key === marketplace)?.note}
-                              変更する場合は「手動入力」を選んでください。
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      <label
-                        htmlFor={field.key}
-                        className="mb-0.5 block text-base font-medium text-slate-700"
-                      >
-                        {field.label}
-                      </label>
-                      <p className="mb-1 text-xs text-slate-400">{field.description}</p>
-                      <div className="relative">
-                        <input
-                          id={field.key}
-                          name={field.key}
-                          type="number"
-                          inputMode="decimal"
-                          step={field.step}
-                          min={0}
-                          max={field.max}
-                          placeholder={field.placeholder}
-                          value={form[field.key]}
-                          onChange={handleChange(field.key)}
-                          disabled={field.key === "feeRate" && marketplace !== "manual"}
-                          className={`w-full min-w-0 rounded-xl border px-4 py-4 pr-12 text-lg text-slate-900 outline-none transition focus:bg-white focus:ring-2 ${
-                            field.key === "feeRate" && marketplace !== "manual"
-                              ? "border-slate-200 bg-slate-100 text-slate-500"
-                              : "bg-slate-50"
-                          } ${
-                            errors[field.key]
-                              ? "border-loss focus:ring-loss/40"
-                              : "border-slate-200 focus:ring-blue-400"
-                          }`}
-                        />
-                        <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-base text-slate-400">
-                          {field.unit}
-                        </span>
-                      </div>
-                      {errors[field.key] && (
-                        <p className="mt-1 text-xs text-loss">{errors[field.key]}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-col gap-2">
-                <button
-                  type="submit"
-                  className="w-full rounded-xl bg-blue-600 py-4 text-lg font-semibold text-white shadow-sm transition active:scale-[0.99] active:bg-blue-700"
-                >
-                  計算する
-                </button>
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="w-full rounded-xl bg-slate-200 py-3.5 text-sm font-medium text-slate-600 transition active:scale-[0.99] active:bg-slate-300"
-                >
-                  入力をリセット
-                </button>
-              </div>
-            </form>
-
-            {result && judgment && tone && (
-              <section className="mt-8 flex flex-col gap-4">
-                <div className="flex items-center gap-2 border-t border-slate-200 pt-6">
-                  <span className="h-2 w-2 rounded-full bg-blue-600" />
-                  <h2 className="text-lg font-bold text-slate-900">計算結果</h2>
-                </div>
-
-                <div className="rounded-3xl bg-blue-600 p-7 text-center shadow-lg">
-                  <p className="text-sm font-medium text-blue-100">仕入れ上限価格</p>
-                  <p className="mt-1 text-6xl font-extrabold text-white">
-                    {result.maxBuyPrice >= 0
-                      ? `¥${Math.round(result.maxBuyPrice).toLocaleString("ja-JP")}`
-                      : "―"}
-                  </p>
-                  <p className="mt-2 text-sm font-medium text-blue-100">
-                    目標利益率{form.targetProfitRate}%を達成できる上限
-                  </p>
-                  {result.maxBuyPrice < 0 && (
-                    <p className="mt-1 text-xs text-blue-100">
-                      現在の条件では目標利益率を達成できません
-                    </p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className={`rounded-2xl bg-white p-4 text-center shadow-sm ${tone.border}`}>
-                    <p className="text-xs font-medium text-slate-500">利益額</p>
-                    <p className={`mt-1 text-3xl font-bold ${tone.text}`}>
-                      {result.profit >= 0 ? "+" : ""}
-                      {formatYen(result.profit)}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border-t-4 border-slate-300 bg-white p-4 text-center shadow-sm">
-                    <p className="text-xs font-medium text-slate-500">利益率</p>
-                    <p className="mt-1 text-3xl font-bold text-slate-800">
-                      {formatPercent(result.profitRate)}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border-t-4 border-slate-300 bg-white p-4 text-center shadow-sm">
-                    <p className="text-xs font-medium text-slate-500">ROI</p>
-                    <p className="mt-1 text-3xl font-bold text-slate-800">
-                      {formatPercent(result.roi)}
-                    </p>
-                  </div>
-                  <div className={`rounded-2xl ${tone.solidBg} p-4 text-center shadow-sm`}>
-                    <p className="text-xs font-medium text-white/80">仕入れ判定</p>
-                    <p className="mt-1 text-xl font-extrabold text-white">{judgment.label}</p>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                  <dl className="divide-y divide-slate-100 text-sm">
-                    <div className="flex items-center justify-between py-2">
-                      <dt className="text-slate-500">販売手数料</dt>
-                      <dd className="font-medium text-slate-800">
-                        {formatYen(result.fee)}
-                      </dd>
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <dt className="text-slate-500">
-                        目標利益率を達成できる最低販売価格
-                      </dt>
-                      <dd className="text-right font-medium text-slate-800">
-                        {result.minSellPriceError
-                          ? "計算不能"
-                          : formatYen(result.minSellPrice as number)}
-                      </dd>
-                    </div>
-                  </dl>
-                  {result.minSellPriceError && (
-                    <p className="mt-2 text-xs text-loss">{result.minSellPriceError}</p>
-                  )}
-                </div>
-
-                <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                  <label
-                    htmlFor="productName"
-                    className="mb-1 block text-sm font-medium text-slate-700"
-                  >
-                    商品名(任意)
-                  </label>
-                  <input
-                    id="productName"
-                    type="text"
-                    value={productName}
-                    onChange={(e) => setProductName(e.target.value)}
-                    placeholder="例: ○○フィギュア"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-blue-400"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSaveItem}
-                    className="mt-3 w-full rounded-xl bg-slate-800 py-3.5 text-base font-semibold text-white transition active:scale-[0.99] active:bg-slate-900"
-                  >
-                    この商品を保存
-                  </button>
-                  {saveMessage && (
-                    <p className="mt-2 text-center text-sm font-medium text-profit-dark">
-                      {saveMessage}
-                    </p>
-                  )}
-                </div>
-              </section>
-            )}
-          </>
-        )}
-      </div>
-    </main>
-  );
-}
